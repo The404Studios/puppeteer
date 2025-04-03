@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Puppeteer.js - Multiplayer Movement & Sync Library</title>
+    <style>
+        :root {
+            --primary-color: #4e54c8;
+            --secondary-color: #8f94fb;
+            --text-color: #333;
+            --light-bg: #f8f9fa;
+            --code-bg: #f5f5f5;
+            --border-color: #ddd;
+            --header-height: 60px;
+            --sidebar-width: 260px;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            line-height: 1.6;
+            color: var(--text-color);
+        }
+        
+        header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            height: var(--header-height);
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+        }
+        
+        .logo-icon {
+            margin-right: 10px;
+            font-size: 28px;
+        }
+        
+        nav {
+            margin-left: auto;
+        }
+        
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin-left: 20px;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        
+        nav a:hover {
+            opacity: 1;
+        }
+        
+        .container {
+            display: flex;
+            margin-top: var(--header-height);
+        }
+        
+        aside {
+            background-color: var(--light-bg);
+            width: var(--sidebar-width);
+            height: calc(100vh - var(--header-height));
+            position: fixed;
+            overflow-y: auto;
+            border-right: 1px solid var(--border-color);
+            padding: 20px 0;
+        }
+        
+        .sidebar-title {
+            padding: 0 20px 10px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .sidebar-nav {
+            list-style: none;
+        }
+        
+        .sidebar-nav li {
+            margin-bottom: 2px;
+        }
+        
+        .sidebar-nav a {
+            display: block;
+            padding: 8px 20px;
+            color: var(--text-color);
+            text-decoration: none;
+            transition: background-color 0.2s;
+            border-left: 3px solid transparent;
+        }
+        
+        .sidebar-nav a:hover {
+            background-color: rgba(0, 0, 0, 0.05);
+        }
+        
+        .sidebar-nav a.active {
+            background-color: rgba(0, 0, 0, 0.05);
+            border-left-color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .sidebar-nav .section {
+            margin-top: 20px;
+            padding: 0 20px 5px;
+            font-size: 13px;
+            font-weight: bold;
+            color: #666;
+        }
+        
+        main {
+            flex: 1;
+            margin-left: var(--sidebar-width);
+            padding: 40px;
+            max-width: 900px;
+        }
+        
+        h1, h2, h3, h4 {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        
+        h1 {
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        h2 {
+            font-size: 1.8em;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        h3 {
+            font-size: 1.4em;
+            margin-top: 30px;
+        }
+        
+        p {
+            margin-bottom: 20px;
+        }
+        
+        pre {
+            background-color: var(--code-bg);
+            padding: 20px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin-bottom: 20px;
+            border: 1px solid var(--border-color);
+        }
+        
+        code {
+            font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+        }
+        
+        .inline-code {
+            background-color: var(--code-bg);
+            padding: 2px 5px;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        
+        .method {
+            margin-bottom: 40px;
+            padding-bottom: 20px;
+            border-bottom: 1px dashed var(--border-color);
+        }
+        
+        .method:last-child {
+            border-bottom: none;
+        }
+        
+        .method-signature {
+            background-color: var(--light-bg);
+            padding: 15px;
+            border-radius: 5px;
+            border-left: 3px solid var(--primary-color);
+            margin-bottom: 20px;
+        }
+        
+        .params {
+            margin-bottom: 20px;
+        }
+        
+        .param {
+            margin-bottom: 10px;
+        }
+        
+        .param-name {
+            font-weight: bold;
+        }
+        
+        .param-type {
+            color: #666;
+            font-style: italic;
+        }
+        
+        .returns {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border-color);
+        }
+        
+        ul, ol {
+            margin-bottom: 20px;
+            padding-left: 25px;
+        }
+        
+        .tree-view {
+            font-family: monospace;
+            white-space: pre;
+            margin-bottom: 20px;
+        }
+        
+        .example {
+            margin-bottom: 30px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: 500;
+            transition: background-color 0.2s;
+        }
+        
+        .cta-button:hover {
+            background-color: var(--secondary-color);
+        }
+        
+        .example-browser {
+            border: 1px solid var(--border-color);
+            border-radius: 5px;
+            margin-bottom: 30px;
+        }
+        
+        .example-browser-header {
+            background-color: var(--light-bg);
+            padding: 10px;
+            border-bottom: 1px solid var(--border-color);
+            border-radius: 5px 5px 0 0;
+            display: flex;
+            align-items: center;
+        }
+        
+        .browser-controls {
+            display: flex;
+            margin-right: 10px;
+        }
+        
+        .browser-control {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+        
+        .browser-control.red {
+            background-color: #ff5f56;
+        }
+        
+        .browser-control.yellow {
+            background-color: #ffbd2e;
+        }
+        
+        .browser-control.green {
+            background-color: #27c93f;
+        }
+        
+        .browser-address {
+            background-color: white;
+            padding: 4px 10px;
+            border-radius: 3px;
+            font-size: 12px;
+            flex: 1;
+            color: #666;
+        }
+        
+        .example-browser-content {
+            padding: 20px;
+        }
+        
+        .code-tabs {
+            margin-bottom: 20px;
+        }
+        
+        .code-tab {
+            display: inline-block;
+            padding: 5px 15px;
+            background-color: var(--light-bg);
+            border: 1px solid var(--border-color);
+            border-bottom: none;
+            border-radius: 5px 5px 0 0;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        
+        .code-tab.active {
+            background-color: var(--code-bg);
+            font-weight: 500;
+        }
+        
+        footer {
+            background-color: var(--light-bg);
+            padding: 40px 20px;
+            margin-top: 60px;
+            border-top: 1px solid var(--border-color);
+            text-align: center;
+            font-size: 14px;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <span class="logo-icon">🎭</span> Puppeteer.js
+        </div>
+        <nav>
+            <a href="#introduction">Introduction</a>
+            <a href="#installation">Installation</a>
+            <a href="#core-concepts">Concepts</a>
+            <a href="#examples">Examples</a>
+            <a href="https://github.com/example/puppeteer" target="_blank">GitHub</a>
+        </nav>
+    </header>
+    
+    <div class="container">
+        <aside>
+            <div class="sidebar-title">Documentation</div>
+            <ul class="sidebar-nav">
+                <li><a href="#introduction" class="active">Introduction</a></li>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#project-structure">Project Structure</a></li>
+                
+                <div class="section">Core Concepts</div>
+                <li><a href="#core-math">Vector3 & Quaternion</a></li>
+                <li><a href="#transform">Transform</a></li>
+                <li><a href="#snapshot">Snapshot</a></li>
+                <li><a href="#interpolator">Interpolator</a></li>
+                
+                <div class="section">Networking</div>
+                <li><a href="#room-client">RoomClient</a></li>
+                <li><a href="#room-host">RoomHost</a></li>
+                
+                <div class="section">Movement</div>
+                <li><a href="#movement-controller">MovementController</a></li>
+                
+                <div class="section">Usage Examples</div>
+                <li><a href="#basic-usage">Basic Usage</a></li>
+                <li><a href="#advanced-examples">Advanced Examples</a></li>
+                
+                <div class="section">API Reference</div>
+                <li><a href="#api-core">Core</a></li>
+                <li><a href="#api-interp">Interpolation</a></li>
+                <li><a href="#api-net">Networking</a></li>
+                <li><a href="#api-movement">Movement</a></li>
+                <li><a href="#api-utils">Utilities</a></li>
+            </ul>
+        </aside>
+        
+        <main>
+            <h1 id="introduction">Puppeteer: Multiplayer Movement & Sync Library (JavaScript)</h1>
+            
+            <p>
+                Puppeteer is a modular, extensible JavaScript library designed to support multiplayer game development using 3D frameworks like Three.js. It includes networking, interpolation, prediction, and movement handling, and is structured to scale up to competitive or simulation-heavy multiplayer games.
+            </p>
+            
+            <a href="#installation" class="cta-button">Get Started</a>
+            
+            <h2 id="installation">Installation</h2>
+            
+            <p>Install Puppeteer using npm:</p>
+            
+            <pre><code>npm install puppeteer-js</code></pre>
+            
+            <p>Or using a script tag:</p>
+            
+            <pre><code>&lt;script src="https://cdn.example.com/puppeteer/latest/puppeteer.min.js"&gt;&lt;/script&gt;</code></pre>
+            
+            <h2 id="project-structure">Project Structure</h2>
+            
+            <div class="tree-view">
+/puppeteer/
+├── core/            - Basic math classes (Vector3, Quaternion, Transform)
+├── interp/          - Interpolation, snapshot logic
+├── net/             - Networking (client & host)
+├── movement/        - Physics & directional movement
+├── utils/           - Utility modules (Clock, Logger, UUID)
+├── index.js         - Library entry point
+└── sample.html      - Example usage with Three.js
+            </div>
+            
+            <h2 id="core-concepts">Core Concepts</h2>
+            
+            <p>
+                Puppeteer provides a complete system for handling multiplayer interactions in 3D space. Here are the key components:
+            </p>
+            
+            <h3 id="core-math">Vector3 & Quaternion</h3>
+            
+            <p>Core math utilities for 3D space operations.</p>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const vec = new Puppeteer.Vector3(x, y, z)</code>
+                </div>
+                <p>
+                    Creates a new three-dimensional vector with x, y, and z coordinates. Provides methods for vector math operations including addition, subtraction, multiplication, normalization, dot products, and cross products.
+                </p>
+                <pre><code>// Create and manipulate vectors
+const position = new Puppeteer.Vector3(0, 0, 0);
+position.add(new Puppeteer.Vector3(1, 2, 3));
+const distance = position.distanceTo(new Puppeteer.Vector3(5, 5, 5));</code></pre>
+            </div>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const rotation = new Puppeteer.Quaternion()</code>
+                </div>
+                <p>
+                    Represents rotations in 3D space, avoiding gimbal lock issues common with Euler angles. Used for smooth interpolation between orientations.
+                </p>
+                <pre><code>// Create and use quaternions for rotation
+const rotation = new Puppeteer.Quaternion();
+rotation.setFromAxisAngle(new Puppeteer.Vector3(0, 1, 0), Math.PI / 2);
+rotation.multiply(anotherQuaternion);</code></pre>
+            </div>
+            
+            <h3 id="transform">Transform</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const transform = new Puppeteer.Transform(position, rotation)</code>
+                </div>
+                <p>
+                    Combines position and rotation into a single object. Represents the complete spatial state of an object in 3D space.
+                </p>
+                <pre><code>// Create a transform representing position and rotation
+const transform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(10, 0, 5),
+    new Puppeteer.Quaternion().setFromAxisAngle(new Puppeteer.Vector3(0, 1, 0), Math.PI)
+);</code></pre>
+            </div>
+            
+            <h3 id="snapshot">Snapshot</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const snapshot = new Puppeteer.Snapshot(transform, timestamp)</code>
+                </div>
+                <p>
+                    Stores a Transform with a timestamp. Used to record the state of an object at a specific point in time for networking and interpolation.
+                </p>
+                <pre><code>// Create a snapshot of an object's state at the current time
+const snapshot = new Puppeteer.Snapshot(
+    playerTransform,
+    Puppeteer.Utils.Clock.now()
+);</code></pre>
+            </div>
+            
+            <h3 id="interpolator">Interpolator</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const interpolator = new Puppeteer.Interpolator(options)</code>
+                </div>
+                <p>
+                    Computes smooth transitions between snapshots. Essential for visual smoothing of network updates.
+                </p>
+                <pre><code>// Create an interpolator with custom settings
+const interpolator = new Puppeteer.Interpolator({
+    maxSnapshots: 10,
+    interpolationDelay: 100 // ms
+});
+
+// Add snapshots as they arrive from the network
+interpolator.addSnapshot(snapshot1);
+interpolator.addSnapshot(snapshot2);
+
+// Get the interpolated transform to render
+const renderTransform = interpolator.computeTransformAtTime(Puppeteer.Utils.Clock.now());</code></pre>
+            </div>
+            
+            <h3 id="room-client">RoomClient</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const client = new Puppeteer.Net.RoomClient(serverUrl)</code>
+                </div>
+                <p>
+                    Handles WebSocket client networking. Connects to a RoomHost and synchronizes object states.
+                </p>
+                <pre><code>// Connect to a multiplayer room
+const client = new Puppeteer.Net.RoomClient("wss://game.example.com/room/12345");
+
+client.on("connect", () => {
+    console.log("Connected to room!");
+});
+
+client.on("playerJoined", (playerId) => {
+    console.log(`Player ${playerId} joined the room`);
+});
+
+// Send player updates
+client.sendTransform(myPlayerTransform);</code></pre>
+            </div>
+            
+            <h3 id="room-host">RoomHost</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const host = new Puppeteer.Net.RoomHost(options)</code>
+                </div>
+                <p>
+                    Hosts a WebSocket server for multiplayer rooms. Manages connections and object ownership.
+                </p>
+                <pre><code>// Server-side code to host a room
+const host = new Puppeteer.Net.RoomHost({
+    port: 8080,
+    maxPlayers: 16,
+    tickRate: 30
+});
+
+host.on("playerJoin", (client) => {
+    console.log(`Player joined with ID: ${client.id}`);
+});
+
+host.start();</code></pre>
+            </div>
+            
+            <h3 id="movement-controller">MovementController</h3>
+            
+            <div class="method">
+                <div class="method-signature">
+                    <code>const controller = new Puppeteer.Movement.MovementController(transform, options)</code>
+                </div>
+                <p>
+                    Moves a player in a specific direction based on speed and deltaTime. Handles physics-based movement.
+                </p>
+                <pre><code>// Create a movement controller for a player
+const controller = new Puppeteer.Movement.MovementController(playerTransform, {
+    speed: 5,
+    rotationSpeed: 2,
+    gravity: 9.8
+});
+
+// Update during game loop
+function gameLoop(deltaTime) {
+    // Move based on input
+    if (keys.forward) {
+        controller.moveForward(deltaTime);
+    }
+    if (keys.right) {
+        controller.rotate(deltaTime);
+    }
+    
+    // Apply physics updates
+    controller.update(deltaTime);
+}</code></pre>
+            </div>
+            
+            <h2 id="basic-usage">Basic Usage (in Browser)</h2>
+            
+            <p>Here's a simple example of integrating Puppeteer with Three.js:</p>
+            
+            <pre><code>import Puppeteer from './puppeteer/index.js';
+
+// Set up Three.js scene
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Create a player with Puppeteer
+const playerTransform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(0, 0, 0),
+    new Puppeteer.Quaternion()
+);
+
+// Create Three.js representation
+const playerGeometry = new THREE.BoxGeometry(1, 2, 1);
+const playerMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+const playerMesh = new THREE.Mesh(playerGeometry, playerMaterial);
+scene.add(playerMesh);
+
+// Connect to multiplayer room
+const client = new Puppeteer.Net.RoomClient("wss://example.com/game");
+
+client.on("playerUpdate", (playerId, playerSnapshot) => {
+    if (playerId !== client.id) {
+        // Update other player's position (simplified)
+        otherPlayers[playerId].addSnapshot(playerSnapshot);
+    }
+});
+
+// Movement controller
+const movement = new Puppeteer.Movement.MovementController(playerTransform);
+
+// Game loop
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Update player movement based on input
+    movement.update(0.016); // Approx 60fps
+    
+    // Apply transform to Three.js mesh
+    playerMesh.position.set(
+        playerTransform.position.x,
+        playerTransform.position.y,
+        playerTransform.position.z
+    );
+    
+    playerMesh.quaternion.set(
+        playerTransform.rotation.x,
+        playerTransform.rotation.y,
+        playerTransform.rotation.z,
+        playerTransform.rotation.w
+    );
+    
+    // Send updates to server
+    client.sendTransform(playerTransform);
+    
+    // Render scene
+    renderer.render(scene, camera);
+}
+
+animate();</code></pre>
+            
+            <h2 id="advanced-examples">Advanced Examples</h2>
+            
+            <h3>Prediction & Reconciliation</h3>
+            
+            <p>
+                Puppeteer supports client-side prediction and server reconciliation for responsive multiplayer gameplay:
+            </p>
+            
+            <pre><code>// Client-side prediction
+const inputQueue = [];
+let lastProcessedInput = 0;
+
+function processInput(input) {
+    // Apply input locally
+    movement.applyInput(input);
+    
+    // Save input for reconciliation
+    inputQueue.push(input);
+    
+    // Send to server
+    client.sendInput(input);
+}
+
+// When server confirms state
+client.on("serverState", (serverSnapshot, lastInputId) => {
+    // Remove confirmed inputs
+    inputQueue = inputQueue.filter(input => input.id > lastInputId);
+    
+    // Reset to server state
+    playerTransform.copy(serverSnapshot.transform);
+    
+    // Reapply remaining inputs
+    for (const input of inputQueue) {
+        movement.applyInput(input);
+    }
+});</code></pre>
+            
+            <h2 id="api-reference">API Reference</h2>
+            
+            <p>
+                See the full API reference for detailed documentation of all methods and classes.
+            </p>
+            
+            <h3 id="api-core">Core Module</h3>
+            <ul>
+                <li><a href="#vector3">Vector3</a> - 3D vector representation</li>
+                <li><a href="#quaternion">Quaternion</a> - Rotation representation</li>
+                <li><a href="#transform">Transform</a> - Combined position and rotation</li>
+            </ul>
+            
+            <h3 id="api-interp">Interpolation Module</h3>
+            <ul>
+                <li><a href="#snapshot">Snapshot</a> - Timestamped transform</li>
+                <li><a href="#interpolator">Interpolator</a> - Smooth transitions between states</li>
+            </ul>
+            
+            <h3 id="api-net">Networking Module</h3>
+            <ul>
+                <li><a href="#room-client">RoomClient</a> - WebSocket client networking</li>
+                <li><a href="#room-host">RoomHost</a> - WebSocket server for multiplayer</li>
+            </ul>
+            
+            <h3 id="api-movement">Movement Module</h3>
+            <ul>
+                <li><a href="#movement-controller">MovementController</a> - Physics & directional movement</li>
+                <li><a href="#collision-system">CollisionSystem</a> - Handle object collisions</li>
+            </ul>
+            
+            <h3 id="api-utils">Utilities Module</h3>
+            <ul>
+                <li><a href="#clock">Clock</a> - Timing utilities</li>
+                <li><a href="#logger">Logger</a> - Debugging helpers</li>
+                <li><a href="#uuid">UUID</a> - Unique ID generation</li>
+            </ul>
+            
+            <footer>
+                <p>Puppeteer.js - Multiplayer Movement & Sync Library for JavaScript</p>
+                <p>Copyright © 2025 • <a href="#">Documentation</a> • <a href="#">GitHub</a> • <a href="#">Examples</a></p>
+            </footer>
+        </main>
+    </div>
+</body>
+</html>

@@ -1,112 +1,3 @@
-// === puppeteer/core/Transform.js ===
-import Vector3 from './Vector3.js';
-import Quaternion from './Quaternion.js';
-import Matrix4 from './Matrix4.js';
-
-export default class Transform {
-  constructor(position = new Vector3(), rotation = new Quaternion(), scale = new Vector3(1, 1, 1)) {
-    this._position = position;
-    this._rotation = rotation;
-    this._scale = scale;
-    this._matrix = null;
-    this._isDirty = true;
-  }
-  
-  get position() { return this._position; }
-  set position(value) { 
-    this._position = value; 
-    this._isDirty = true; 
-  }
-  
-  get rotation() { return this._rotation; }
-  set rotation(value) { 
-    this._rotation = value; 
-    this._isDirty = true; 
-  }
-  
-  get scale() { return this._scale; }
-  set scale(value) { 
-    this._scale = value; 
-    this._isDirty = true; 
-  }
-  
-  getMatrix() {
-    if (this._isDirty || this._matrix === null) {
-      this._matrix = Matrix4.compose(this._position, this._rotation, this._scale);
-      this._isDirty = false;
-    }
-    return this._matrix;
-  }
-  
-  setMatrix(matrix) {
-    matrix.decompose(this._position, this._rotation, this._scale);
-    this._matrix = matrix;
-    this._isDirty = false;
-    return this;
-  }
-  
-  clone() {
-    return new Transform(
-      this._position.clone(), 
-      this._rotation.clone(), 
-      this._scale.clone()
-    );
-  }
-  
-  copy(transform) {
-    this._position = transform.position.clone();
-    this._rotation = transform.rotation.clone();
-    this._scale = transform.scale.clone();
-    this._isDirty = true;
-    return this;
-  }
-  
-  lerp(to, t) {
-    return new Transform(
-      this._position.lerp(to.position, t),
-      this._rotation.slerp(to.rotation, t),
-      this._scale.lerp(to.scale, t)
-    );
-  }
-  
-  lookAt(target, up = Vector3.up()) {
-    const matrix = Matrix4.lookAt(this._position, target, up);
-    const rotationMatrix = matrix.extractRotation();
-    this._rotation.setFromRotationMatrix(rotationMatrix);
-    this._isDirty = true;
-    return this;
-  }
-  
-  serialize() {
-    return {
-      position: {
-        x: this._position.x,
-        y: this._position.y,
-        z: this._position.z
-      },
-      rotation: {
-        x: this._rotation.x,
-        y: this._rotation.y,
-        z: this._rotation.z,
-        w: this._rotation.w
-      },
-      scale: {
-        x: this._scale.x,
-        y: this._scale.y,
-        z: this._scale.z
-      }
-    };
-  }
-  
-  static deserialize(data) {
-    return new Transform(
-      new Vector3(data.position.x, data.position.y, data.position.z),
-      new Quaternion(data.rotation.x, data.rotation.y, data.rotation.z, data.rotation.w),
-      new Vector3(data.scale.x, data.scale.y, data.scale.z)
-    );
-  }
-}
-
 // === puppeteer/core/Matrix4.js ===
 import Vector3 from './Vector3.js';
 import Quaternion from './Quaternion.js';
@@ -278,7 +169,7 @@ export default class Matrix4 {
   }
   
   extractRotation() {
-    // This method assumes the upper 3x3 of the matrix is a pure rotation matrix (i.e, unscaled)
+    // This method extracts the rotation portion of the matrix
     const m = new Matrix4();
     const te = this.elements;
     
@@ -297,36 +188,205 @@ export default class Matrix4 {
   }
   
   decompose(position, quaternion, scale) {
-    // Extract translation
-    position.x = this.elements[12];
-    position.y = this.elements[13];
-    position.z = this.elements[14];
+    const te = this.elements;
     
-    // Extract scale
-    // TODO: Implement scale extraction
-    scale.x = 1;
-    scale.y = 1;
-    scale.z = 1;
+    // Extract position
+    position.x = te[12];
+    position.y = te[13];
+    position.z = te[14];
+    
+    // Extract scale by calculating the length of the columns
+    let sx = new Vector3(te[0], te[1], te[2]).length();
+    const sy = new Vector3(te[4], te[5], te[6]).length();
+    const sz = new Vector3(te[8], te[9], te[10]).length();
+    
+    // If determinant is negative, we need to invert one scale
+    const det = this.determinant();
+    if (det < 0) sx = -sx;
+    
+    scale.x = sx;
+    scale.y = sy;
+    scale.z = sz;
     
     // Extract rotation
-    // TODO: Implement rotation extraction to quaternion
+    // Scale the rotation part
+    const invSX = 1 / sx;
+    const invSY = 1 / sy;
+    const invSZ = 1 / sz;
+    
+    const m11 = te[0] * invSX;
+    const m12 = te[4] * invSY;
+    const m13 = te[8] * invSZ;
+    const m21 = te[1] * invSX;
+    const m22 = te[5] * invSY;
+    const m23 = te[9] * invSZ;
+    const m31 = te[2] * invSX;
+    const m32 = te[6] * invSY;
+    const m33 = te[10] * invSZ;
+    
+    // http://www.euclideanspace.com/maths/geometry/rotations/conversions/matrixToQuaternion/index.htm
+    const trace = m11 + m22 + m33;
+    
+    if (trace > 0) {
+      const s = 0.5 / Math.sqrt(trace + 1.0);
+      quaternion.w = 0.25 / s;
+      quaternion.x = (m32 - m23) * s;
+      quaternion.y = (m13 - m31) * s;
+      quaternion.z = (m21 - m12) * s;
+    } else if (m11 > m22 && m11 > m33) {
+      const s = 2.0 * Math.sqrt(1.0 + m11 - m22 - m33);
+      quaternion.w = (m32 - m23) / s;
+      quaternion.x = 0.25 * s;
+      quaternion.y = (m12 + m21) / s;
+      quaternion.z = (m13 + m31) / s;
+    } else if (m22 > m33) {
+      const s = 2.0 * Math.sqrt(1.0 + m22 - m11 - m33);
+      quaternion.w = (m13 - m31) / s;
+      quaternion.x = (m12 + m21) / s;
+      quaternion.y = 0.25 * s;
+      quaternion.z = (m23 + m32) / s;
+    } else {
+      const s = 2.0 * Math.sqrt(1.0 + m33 - m11 - m22);
+      quaternion.w = (m21 - m12) / s;
+      quaternion.x = (m13 + m31) / s;
+      quaternion.y = (m23 + m32) / s;
+      quaternion.z = 0.25 * s;
+    }
     
     return this;
   }
   
+  determinant() {
+    const te = this.elements;
+    
+    const n11 = te[0], n12 = te[4], n13 = te[8], n14 = te[12];
+    const n21 = te[1], n22 = te[5], n23 = te[9], n24 = te[13];
+    const n31 = te[2], n32 = te[6], n33 = te[10], n34 = te[14];
+    const n41 = te[3], n42 = te[7], n43 = te[11], n44 = te[15];
+    
+    return (
+      n41 * (
+        n14 * n23 * n32 -
+        n13 * n24 * n32 -
+        n14 * n22 * n33 +
+        n12 * n24 * n33 +
+        n13 * n22 * n34 -
+        n12 * n23 * n34
+      ) +
+      n42 * (
+        n11 * n23 * n34 -
+        n11 * n24 * n33 +
+        n14 * n21 * n33 -
+        n13 * n21 * n34 +
+        n13 * n24 * n31 -
+        n14 * n23 * n31
+      ) +
+      n43 * (
+        n11 * n24 * n32 -
+        n11 * n22 * n34 -
+        n14 * n21 * n32 +
+        n12 * n21 * n34 +
+        n14 * n22 * n31 -
+        n12 * n24 * n31
+      ) +
+      n44 * (
+        n11 * n22 * n33 -
+        n11 * n23 * n32 +
+        n13 * n21 * n32 -
+        n12 * n21 * n33 -
+        n13 * n22 * n31 +
+        n12 * n23 * n31
+      )
+    );
+  }
+  
   static compose(position, quaternion, scale) {
     const m = new Matrix4();
+    const te = m.elements;
     
-    // TODO: Implement matrix composition from position, quaternion, and scale
+    // Set rotation component from quaternion
+    const x = quaternion.x, y = quaternion.y, z = quaternion.z, w = quaternion.w;
+    const x2 = x + x, y2 = y + y, z2 = z + z;
+    const xx = x * x2, xy = x * y2, xz = x * z2;
+    const yy = y * y2, yz = y * z2, zz = z * z2;
+    const wx = w * x2, wy = w * y2, wz = w * z2;
+    
+    const sx = scale.x, sy = scale.y, sz = scale.z;
+    
+    te[0] = (1 - (yy + zz)) * sx;
+    te[1] = (xy + wz) * sx;
+    te[2] = (xz - wy) * sx;
+    te[3] = 0;
+    
+    te[4] = (xy - wz) * sy;
+    te[5] = (1 - (xx + zz)) * sy;
+    te[6] = (yz + wx) * sy;
+    te[7] = 0;
+    
+    te[8] = (xz + wy) * sz;
+    te[9] = (yz - wx) * sz;
+    te[10] = (1 - (xx + yy)) * sz;
+    te[11] = 0;
+    
+    te[12] = position.x;
+    te[13] = position.y;
+    te[14] = position.z;
+    te[15] = 1;
     
     return m;
   }
   
   static lookAt(eye, target, up) {
     const m = new Matrix4();
+    const te = m.elements;
     
-    // TODO: Implement lookAt matrix construction
+    const z = new Vector3().subVectors(eye, target).normalize();
+    
+    // If the distance is zero, z will be NaN
+    if (z.lengthSquared() === 0) {
+      z.z = 1;
+    }
+    
+    const x = new Vector3().crossVectors(up, z).normalize();
+    
+    // If up and z are parallel, x will be zero
+    if (x.lengthSquared() === 0) {
+      z.x += 0.0001; // Slightly change z
+      x.crossVectors(up, z).normalize();
+    }
+    
+    const y = new Vector3().crossVectors(z, x);
+    
+    te[0] = x.x; te[4] = y.x; te[8] = z.x;
+    te[1] = x.y; te[5] = y.y; te[9] = z.y;
+    te[2] = x.z; te[6] = y.z; te[10] = z.z;
     
     return m;
+  }
+  
+  // Helper method for Vector3
+  subVectors(a, b) {
+    return new Vector3(a.x - b.x, a.y - b.y, a.z - b.z);
+  }
+  
+  // Helper method for Vector3
+  crossVectors(a, b) {
+    const ax = a.x, ay = a.y, az = a.z;
+    const bx = b.x, by = b.y, bz = b.z;
+    
+    return new Vector3(
+      ay * bz - az * by,
+      az * bx - ax * bz,
+      ax * by - ay * bx
+    );
+  }
+  
+  // Three.js compatibility methods
+  fromThree(threeMatrix) {
+    return this.fromArray(threeMatrix.elements);
+  }
+  
+  toThree() {
+    return new THREE.Matrix4().fromArray(this.elements);
   }
 }

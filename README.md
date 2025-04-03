@@ -376,7 +376,7 @@ Check out these examples to see Puppeteer in action: (coming soon)
 
 ## 📘 Documentation
 
-For detailed API documentation, visit [our documentation site]([https://the404studios.github.io/puppeteer/](https://the404studios.github.io/puppeteer-docs.html)).
+For detailed API documentation, visit [our documentation site]([https://the404studios.github.io/puppeteer-docs.html]).
 
 ## 🤝 Contributing
 

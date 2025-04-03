@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Puppeteer Demo</title>
+  <style>body { margin: 0; overflow: hidden; }</style>
+</head>
+<body>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.158.0/build/three.min.js"></script>
+  <script type="module">
+    import Puppeteer from './puppeteer/index.js';
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer();
+    document.body.appendChild(renderer.domElement);
+
+    camera.position.z = 5;
+    renderer.setSize(window.innerWidth, window.innerHeight);
+
+    const playerMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(1, 1, 1),
+      new THREE.MeshBasicMaterial({ color: 0x00ff00 })
+    );
+    scene.add(playerMesh);
+
+    Puppeteer.RoomClient.connect("ws://localhost:8080");
+
+    let movement = new Puppeteer.MovementController();
+    let playerId = Puppeteer.utils.UUID.uuidv4();
+
+    function animate() {
+      requestAnimationFrame(animate);
+      movement.moveForward(0.01);
+
+      const position = movement.getPosition();
+      const transform = {
+        position: position,
+        rotation: new Puppeteer.Quaternion()
+      };
+
+      Puppeteer.RoomClient.send("sync", {
+        playerId,
+        transform,
+        timestamp: performance.now()
+      });
+
+      playerMesh.position.copy(position.toTHREE());
+
+      renderer.render(scene, camera);
+    }
+
+    animate();
+  </script>
+</body>
+</html>

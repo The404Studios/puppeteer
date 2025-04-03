@@ -7,7 +7,6 @@
 ![JavaScript](https://img.shields.io/badge/JavaScript-79.7%25-yellow)
 ![HTML](https://img.shields.io/badge/HTML-20.3%25-orange)
 ![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)
-[![Stars](https://img.shields.io/github/stars/The404Studios/puppeteer?style=social)](https://github.com/The404Studios/puppeteer/stargazers)
 
 **A powerful JavaScript library for multiplayer HTML applications with 3D space interpolation**
 
@@ -59,20 +58,153 @@ Or include directly in your HTML:
 
 ## 🔍 Core Concepts
 
-- **Vector3 / Quaternion:** Core math utilities for 3D space.
-- **Transform:** Combines position and rotation.
-- **Snapshot:** Stores a Transform with a timestamp.
-- **Interpolator:** Computes smooth transitions between Snapshots.
-- **RoomClient:** Handles WebSocket client networking.
-- **RoomHost:** Hosts WebSocket server for multiplayer rooms.
-- **MovementController:** Moves a player in a specific direction based on speed and deltaTime.
+### Transform & Vector Math
 
-## 🎮 Quick Start
+At the heart of Puppeteer are the mathematical utilities for handling 3D space:
 
 ```javascript
+import { Vector3, Quaternion, Transform } from '@the404studios/puppeteer';
+
+// Create a position vector
+const position = new Vector3(10, 0, 5);
+
+// Create a rotation
+const rotation = new Quaternion().setFromEuler(0, Math.PI/2, 0);
+
+// Create a complete transform
+const transform = new Transform(position, rotation);
+
+// Use vector math
+const direction = Vector3.forward().applyQuaternion(rotation);
+const distance = position.distanceTo(Vector3.zero());
+```
+
+### Snapshots & Interpolation
+
+Puppeteer uses a snapshot system to record entity states over time:
+
+```javascript
+import { Snapshot, Interpolator } from '@the404studios/puppeteer';
+
+// Create an interpolator for an entity
+const playerInterpolator = new Interpolator({
+  interpolationDelay: 100,  // Buffer for network jitter (ms)
+  allowExtrapolation: true  // Predict beyond known states
+});
+
+// Record entity state
+function onNetworkUpdate(entityId, posX, posY, posZ, rotQuat) {
+  const transform = new Transform(
+    new Vector3(posX, posY, posZ),
+    new Quaternion(rotQuat.x, rotQuat.y, rotQuat.z, rotQuat.w)
+  );
+  
+  const snapshot = new Snapshot(transform, performance.now());
+  playerInterpolator.addSnapshot(entityId, snapshot);
+}
+
+// In your render loop, get interpolated state
+function updateEntityVisuals(entityId) {
+  const transform = playerInterpolator.getInterpolatedTransform(entityId);
+  if (transform) {
+    entityMesh.position.copy(transform.position);
+    entityMesh.quaternion.copy(transform.rotation);
+  }
+}
+```
+
+### Movement Controller
+
+Puppeteer includes a robust movement system that can be used for players or AI:
+
+```javascript
+import { MovementController, Transform, Vector3 } from '@the404studios/puppeteer';
+
+// Create a transform for the entity
+const entityTransform = new Transform(
+  new Vector3(0, 0, 0),  // Starting position
+  new Quaternion()       // Starting rotation
+);
+
+// Create the movement controller
+const movement = new MovementController(entityTransform, {
+  maxSpeed: 5,            // Units per second
+  acceleration: 20,       // Units per second squared
+  rotationSpeed: 10,      // Radians per second
+  jumpForce: 8            // Initial upward velocity
+});
+
+// Set up an update loop
+function update(deltaTime) {
+  // Apply input
+  if (keys.forward) movement.moveForward(deltaTime);
+  if (keys.backward) movement.moveBackward(deltaTime);
+  if (keys.left) movement.moveLeft(deltaTime);
+  if (keys.right) movement.moveRight(deltaTime);
+  if (keys.jump) movement.jump();
+  
+  // Update visual representation
+  playerMesh.position.copy(entityTransform.position);
+  playerMesh.quaternion.copy(entityTransform.rotation);
+}
+```
+
+### Networking
+
+Puppeteer makes multiplayer connections simple:
+
+```javascript
+import { RoomClient } from '@the404studios/puppeteer';
+
+// Connect to a room
+const client = RoomClient.connect("wss://gameserver.example.com/room/123");
+
+// Send updates
+function sendPlayerState() {
+  RoomClient.send("playerUpdate", {
+    position: player.transform.position,
+    rotation: player.transform.rotation,
+    timestamp: performance.now()
+  });
+}
+
+// Receive updates
+RoomClient.on("playerJoined", (playerId, initialData) => {
+  console.log(`Player ${playerId} joined the game`);
+  createPlayerVisual(playerId, initialData);
+});
+
+RoomClient.on("playerUpdate", (playerId, data) => {
+  updatePlayerVisual(playerId, data);
+});
+```
+
+### Host a Game Server
+
+Create your own multiplayer room host:
+
+```javascript
+import { RoomHost } from '@the404studios/puppeteer';
+
+// Start a WebSocket server
+RoomHost.startServer(8080);
+
+// Broadcast to all clients
+function broadcastGameState(gameState) {
+  RoomHost.broadcast(JSON.stringify({
+    type: "gameState",
+    data: gameState
+  }));
+}
+```
+
+## 🎮 Quick Start for Three.js Integration
+
+```javascript
+import * as THREE from 'three';
 import Puppeteer from '@the404studios/puppeteer';
 
-// Set up Three.js scene (or your preferred rendering engine)
+// Set up Three.js scene
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 const renderer = new THREE.WebGLRenderer();
@@ -192,6 +324,47 @@ function updateOtherPlayers() {
 }
 ```
 
+## 🔧 Configuration
+
+### Interpolation Configuration
+
+Customize the interpolation behavior with your own config:
+
+```javascript
+const customInterpolationConfig = {
+  maxSnapshots: 30,               // Maximum number of snapshots to store per entity
+  interpolationDelay: 100,        // Delay in ms to smooth out network jitter
+  allowExtrapolation: true,       // Whether to extrapolate when no future snapshot is available
+  maxExtrapolationTime: 0.5,      // Maximum time in seconds to extrapolate
+  snapshotExpirationTime: 10000,  // Time in ms after which snapshots are considered expired
+  blendDuration: 0.2,             // Duration in seconds for blending between states
+};
+
+const interpolator = new Puppeteer.Interpolator(customInterpolationConfig);
+```
+
+### Movement Configuration
+
+Fine-tune the movement controller for your game's feel:
+
+```javascript
+const customMovementConfig = {
+  maxSpeed: 5,             // Maximum movement speed (units per second)
+  acceleration: 20,        // Acceleration rate (units per second squared)
+  drag: 10,                // Drag coefficient when not providing input
+  frictionFactor: 0.8,     // Instant friction factor when stopping input
+  rotationSpeed: 10,       // Rotation speed (radians per second)
+  jumpForce: 8,            // Initial upward velocity for jumps
+  gravity: 20,             // Gravity strength
+  airControlFactor: 0.3,   // Multiplier for air control (0-1)
+  sprintMultiplier: 1.6,   // Speed multiplier when sprinting
+  crouchMultiplier: 0.6,   // Speed multiplier when crouching
+  autoRotate: true,        // Whether to automatically rotate to face movement direction
+};
+
+const movement = new Puppeteer.MovementController(transform, customMovementConfig);
+```
+
 ## 🧪 Examples
 
 Check out these examples to see Puppeteer in action: (coming soon)
@@ -218,6 +391,16 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 📝 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🎯 Real-World Use Cases
+
+Puppeteer can be used for a variety of multiplayer web applications:
+
+- **Multiplayer Games** - First-person shooters, RPGs, collaborative puzzles
+- **Virtual Spaces** - Meeting rooms, virtual galleries, social spaces
+- **Educational Simulations** - Interactive learning environments
+- **Product Visualization** - Collaborative product reviews in 3D
+- **Architectural Visualization** - Multi-user building tours and reviews
 
 ## 💖 Acknowledgements
 

@@ -194,7 +194,7 @@ function updateOtherPlayers() {
 
 ## 🧪 Examples
 
-Check out these examples to see Puppeteer in action:
+Check out these examples to see Puppeteer in action: (coming soon)
 
 - [Basic Connection](examples/basic-connection.html) - Simple client/server setup
 - [Character Movement](examples/character-movement.html) - Player controls with interpolation

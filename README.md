@@ -408,7 +408,583 @@ Puppeteer can be used for a variety of multiplayer web applications:
 - [ws](https://github.com/websockets/ws) - WebSocket implementation
 - The amazing community of game developers who provided feedback and testing
 
----
+# Puppeteer.js Documentation (more condensed guide)
+
+## Overview
+Puppeteer.js is a modular, extensible JavaScript library designed to support multiplayer game development using 3D frameworks like Three.js. It includes networking, interpolation, prediction, and movement handling, and is structured to scale up to competitive or simulation-heavy multiplayer games.
+
+## Table of Contents
+1. [Installation](#installation)
+2. [Core Components](#core-components)
+3. [Real-Time Networking](#real-time-networking)
+4. [Interpolation System](#interpolation-system)
+5. [Movement Controller](#movement-controller)
+6. [Integration Examples](#integration-examples)
+7. [API Reference](#api-reference)
+
+## Installation
+
+Install Puppeteer.js using npm:
+
+```bash
+npm install puppeteer-js
+```
+
+Or include it via CDN:
+
+```html
+<script src="https://cdn.example.com/puppeteer/latest/puppeteer.min.js"></script>
+```
+
+## Core Components
+
+### Vector3
+Represents a point or vector in 3D space.
+
+```javascript
+// Create and manipulate vectors
+const position = new Puppeteer.Vector3(0, 0, 0);
+position.add(new Puppeteer.Vector3(1, 2, 3));
+const distance = position.distanceTo(new Puppeteer.Vector3(5, 5, 5));
+```
+
+### Quaternion
+Represents rotations in 3D space, avoiding gimbal lock issues.
+
+```javascript
+// Create and use quaternions for rotation
+const rotation = new Puppeteer.Quaternion();
+rotation.setFromAxisAngle(new Puppeteer.Vector3(0, 1, 0), Math.PI / 2);
+rotation.multiply(anotherQuaternion);
+```
+
+### Transform
+Combines position, rotation, and scale into a single object.
+
+```javascript
+// Create a transform
+const transform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(10, 0, 5),
+    new Puppeteer.Quaternion(),
+    new Puppeteer.Vector3(1, 1, 1) // scale
+);
+```
+
+### Matrix4
+Represents a 4x4 transformation matrix for advanced 3D operations.
+
+```javascript
+// Create and manipulate matrices
+const matrix = new Puppeteer.Matrix4();
+matrix.setPosition(1, 2, 3);
+matrix.invert();
+```
+
+## Real-Time Networking
+
+### Introduction
+The Real-Time Networking module provides advanced networking capabilities for multiplayer games. It includes entity synchronization, interpolation, peer-to-peer communication, and more.
+
+### Key Features
+- Entity state synchronization with interpolation
+- Room-based multiplayer
+- WebRTC peer-to-peer connections
+- Client-side prediction and server reconciliation
+- Network optimization utilities
+- Collision detection for moving entities
+
+### RealtimeClient
+The primary class for multiplayer networking. Handles connection, synchronization, and entity management.
+
+```javascript
+// Create a realtime client
+const client = new Puppeteer.RealTime.RealtimeClient({
+    updateRate: 50,             // Update rate in ms
+    interpolationDelay: 100,    // Interpolation delay in ms
+    useP2P: true,               // Use WebRTC when available
+    useLocalStorage: true       // Store state in localStorage
+});
+
+// Connect to a room
+await client.connect('room_123');
+
+// Register an entity
+const transform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(0, 0, 0),
+    new Puppeteer.Quaternion()
+);
+
+client.registerEntity('player1', transform, { 
+    type: 'player',
+    color: '#ff0000',
+    name: 'Player 1' 
+});
+
+// Update entity
+client.updateEntity('player1', transform);
+
+// Get interpolated transform for rendering
+const renderTransform = client.getInterpolatedTransform('player1');
+```
+
+### EntityState
+Represents a networked entity's state at a point in time.
+
+```javascript
+const entityState = new Puppeteer.RealTime.EntityState(
+    'player1',
+    transform,
+    timestamp,
+    { type: 'player', color: '#ff0000' }
+);
+
+// Serialize for network transmission
+const serializedData = entityState.serialize();
+
+// Deserialize from network data
+const receivedState = Puppeteer.RealTime.EntityState.deserialize(serializedData);
+```
+
+### RoomSyncManager
+Low-level class that manages state synchronization between clients.
+
+```javascript
+const syncManager = new Puppeteer.RealTime.RoomSyncManager({
+    roomId: 'room_123',
+    clientId: 'client_456',
+    isHost: true
+});
+
+// Register entities
+syncManager.registerEntity('player1', transform, metadata, true);
+
+// Apply network updates
+syncManager.applyNetworkUpdate(entityStateData);
+```
+
+### WebRTCManager
+Manages WebRTC peer-to-peer connections for direct communication between clients.
+
+```javascript
+const webrtc = new Puppeteer.RealTime.WebRTCManager({
+    clientId: 'client_123'
+});
+
+// Initialize for a room
+webrtc.initialize('room_456');
+
+// Create offer to connect to a peer
+const offer = await webrtc.createOffer('peer_789');
+
+// Send data to a peer
+webrtc.sendToPeer('peer_789', 'entityUpdate', entityData);
+
+// Broadcast to all connected peers
+webrtc.broadcast('gameEvent', { type: 'explosion', position: [10, 20, 30] });
+```
+
+### NetworkUtils
+Utilities for optimizing network performance.
+
+```javascript
+// Calculate optimal buffer delay
+const latencies = [50, 60, 55, 70, 65];
+const optimalDelay = Puppeteer.RealTime.NetworkUtils.calculateOptimalDelay(
+    latencies,
+    50,  // Minimum delay
+    300  // Maximum delay
+);
+
+// Estimate network jitter
+const jitter = Puppeteer.RealTime.NetworkUtils.estimateJitter(latencies);
+
+// Detect and adjust for clock drift
+const clockDiff = Puppeteer.RealTime.NetworkUtils.estimateClockDrift(
+    localTime,
+    remoteTime,
+    latency / 2  // Estimated one-way latency
+);
+```
+
+### CollisionUtils
+Utilities for detecting and resolving collisions between moving entities.
+
+```javascript
+// Detect collision between moving spheres
+const collision = Puppeteer.RealTime.CollisionUtils.detectMovingSpheresCollision(
+    player1Pos, player2Pos,
+    player1Vel, player2Vel,
+    player1Radius, player2Radius,
+    deltaTime
+);
+
+if (collision) {
+    // Resolve collision with impulse response
+    const response = Puppeteer.RealTime.CollisionUtils.applyCollisionImpulse(
+        player1Vel, player2Vel,
+        collision.normal,
+        player1Mass, player2Mass,
+        0.5  // Restitution (bounciness)
+    );
+    
+    // Apply new velocities
+    player1.velocity = response.velA;
+    player2.velocity = response.velB;
+}
+```
+
+## Interpolation System
+
+### Snapshot
+Stores a Transform with a timestamp for interpolation.
+
+```javascript
+// Create a snapshot
+const snapshot = new Puppeteer.Snapshot(
+    transform,
+    Puppeteer.Clock.now(),
+    { entityId: 'player1' }
+);
+```
+
+### Interpolator
+Computes smooth transitions between snapshots for visual smoothing.
+
+```javascript
+// Create an interpolator
+const interpolator = new Puppeteer.Interpolator({
+    maxSnapshots: 10,
+    interpolationDelay: 100  // ms
+});
+
+// Add snapshots as they arrive from the network
+interpolator.addSnapshot('player1', snapshot1);
+interpolator.addSnapshot('player1', snapshot2);
+
+// Get interpolated transform for rendering
+const renderTime = Puppeteer.Clock.now() - 100;  // 100ms delay for smoothing
+const renderTransform = interpolator.getInterpolatedTransform('player1', renderTime);
+```
+
+## Movement Controller
+
+### MovementController
+Handles physics-based movement with proper acceleration, friction, and collision.
+
+```javascript
+// Create a movement controller
+const controller = new Puppeteer.MovementController(playerTransform, {
+    maxSpeed: 5,
+    acceleration: 20,
+    drag: 10,
+    gravity: 9.8
+});
+
+// Apply input
+controller.moveForward(deltaTime);
+controller.rotate(Math.PI / 4);
+controller.jump();
+
+// Update physics
+controller.update(deltaTime);
+```
+
+## Integration Examples
+
+### Basic Multiplayer Setup
+
+```javascript
+import Puppeteer from 'puppeteer-js';
+
+// Create realtime client
+const client = new Puppeteer.RealTime.RealtimeClient();
+
+// Connect to room
+client.connect('game_room_123');
+
+// Create local player
+const playerTransform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(0, 0, 0),
+    new Puppeteer.Quaternion()
+);
+
+client.registerEntity('player1', playerTransform, {
+    type: 'player',
+    color: '#ff0000',
+    name: 'Player 1'
+});
+
+// Set up game loop
+function gameLoop(time) {
+    // Update player based on input
+    if (keys.w) {
+        playerTransform.position.z -= 1 * deltaTime;
+        client.updateEntity('player1', playerTransform);
+    }
+    
+    // Render all entities
+    for (const entityId of client.getAllEntityIds()) {
+        const renderTransform = client.getInterpolatedTransform(entityId);
+        if (renderTransform) {
+            // Render entity using transform
+            renderEntity(entityId, renderTransform);
+        }
+    }
+    
+    requestAnimationFrame(gameLoop);
+}
+
+// Start game loop
+requestAnimationFrame(gameLoop);
+```
+
+### Integration with Three.js
+
+```javascript
+import * as THREE from 'three';
+import Puppeteer from 'puppeteer-js';
+
+// Set up Three.js
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer();
+renderer.setSize(window.innerWidth, window.innerHeight);
+document.body.appendChild(renderer.domElement);
+
+// Create realtime client
+const client = new Puppeteer.RealTime.RealtimeClient();
+client.connect('three_demo_room');
+
+// Create local player mesh
+const geometry = new THREE.BoxGeometry(1, 1, 1);
+const material = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+const playerMesh = new THREE.Mesh(geometry, material);
+scene.add(playerMesh);
+
+// Register with Puppeteer
+const playerTransform = new Puppeteer.Transform(
+    new Puppeteer.Vector3(0, 0, 0),
+    new Puppeteer.Quaternion()
+);
+
+client.registerEntity('player', playerTransform, {
+    type: 'player',
+    color: '#ff0000'
+});
+
+// Entity cache
+const entityMeshes = {
+    player: playerMesh
+};
+
+// Handle new entities
+client.on('networkUpdate', (data) => {
+    const entityId = data.entityId;
+    
+    // Create mesh for new entity if needed
+    if (!entityMeshes[entityId]) {
+        const newGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const newMaterial = new THREE.MeshBasicMaterial({ 
+            color: data.entity.metadata.color || 0x00ff00 
+        });
+        const newMesh = new THREE.Mesh(newGeometry, newMaterial);
+        scene.add(newMesh);
+        
+        entityMeshes[entityId] = newMesh;
+    }
+});
+
+// Animation loop
+function animate() {
+    requestAnimationFrame(animate);
+    
+    // Update all entities
+    for (const [entityId, mesh] of Object.entries(entityMeshes)) {
+        const transform = client.getInterpolatedTransform(entityId);
+        
+        if (transform) {
+            // Apply transform to Three.js mesh
+            mesh.position.set(
+                transform.position.x,
+                transform.position.y,
+                transform.position.z
+            );
+            
+            mesh.quaternion.set(
+                transform.rotation.x,
+                transform.rotation.y,
+                transform.rotation.z,
+                transform.rotation.w
+            );
+        }
+    }
+    
+    // Handle keyboard input
+    if (keys.w) playerTransform.position.z -= 0.1;
+    if (keys.s) playerTransform.position.z += 0.1;
+    if (keys.a) playerTransform.position.x -= 0.1;
+    if (keys.d) playerTransform.position.x += 0.1;
+    
+    // Update own entity
+    client.updateEntity('player', playerTransform);
+    
+    // Render
+    renderer.render(scene, camera);
+}
+
+animate();
+```
+
+## API Reference
+
+### Core Module
+
+#### Vector3
+- `new Vector3(x, y, z)` - Create a new vector
+- `add(v)` - Add vector
+- `sub(v)` - Subtract vector
+- `multiplyScalar(s)` - Multiply by scalar
+- `divideScalar(s)` - Divide by scalar
+- `length()` - Get vector length
+- `normalize()` - Normalize vector
+- `dot(v)` - Dot product
+- `cross(v)` - Cross product
+- `distanceTo(v)` - Distance to another vector
+
+#### Quaternion
+- `new Quaternion(x, y, z, w)` - Create quaternion
+- `setFromAxisAngle(axis, angle)` - Set from axis and angle
+- `multiply(q)` - Multiply with another quaternion
+- `slerp(q, t)` - Spherical interpolation
+- `normalize()` - Normalize quaternion
+- `inverse()` - Get inverse quaternion
+
+#### Transform
+- `new Transform(position, rotation, scale)` - Create transform
+- `getMatrix()` - Get transformation matrix
+- `setMatrix(matrix)` - Set from matrix
+- `clone()` - Create copy
+- `lerp(to, t)` - Linear interpolation
+- `lookAt(target, up)` - Orient towards target
+
+### Real-Time Networking Module
+
+#### RealtimeClient
+- `new RealtimeClient(options)` - Create client
+- `connect(url, asHost)` - Connect to room
+- `disconnect()` - Disconnect from room
+- `registerEntity(entityId, transform, metadata)` - Register entity
+- `updateEntity(entityId, transform, metadata)` - Update entity
+- `getEntityState(entityId)` - Get entity state
+- `getInterpolatedTransform(entityId)` - Get interpolated transform
+- `isOwnedByMe(entityId)` - Check ownership
+- `getAllEntities()` - Get all entities
+- `getOwnedEntities()` - Get owned entities
+- `takeOwnership(entityId)` - Take ownership
+- `releaseOwnership(entityId)` - Release ownership
+
+#### RoomSyncManager
+- `new RoomSyncManager(options)` - Create sync manager
+- `setupRoom(roomId, asHost)` - Setup room
+- `registerEntity(entityId, transform, metadata, owned)` - Register entity
+- `updateEntity(entityId, transform, metadata)` - Update entity
+- `applyNetworkUpdate(data)` - Apply network update
+- `getEntityState(entityId)` - Get entity state
+- `getInterpolatedTransform(entityId, time)` - Get interpolated transform
+
+#### WebRTCManager
+- `new WebRTCManager(options)` - Create WebRTC manager
+- `initialize(roomId)` - Initialize for room
+- `createOffer(peerId)` - Create connection offer
+- `handleOffer(offerData)` - Handle incoming offer
+- `handleAnswer(answerData)` - Handle answer
+- `handleIceCandidate(candidateData)` - Handle ICE candidate
+- `sendToPeer(peerId, type, data)` - Send to specific peer
+- `broadcast(type, data)` - Broadcast to all peers
+- `getConnectedPeers()` - Get connected peers
+
+### Interpolation Module
+
+#### Interpolator
+- `new Interpolator(config)` - Create interpolator
+- `addSnapshot(entityId, snapshot)` - Add snapshot
+- `getInterpolatedSnapshot(entityId, time)` - Get interpolated snapshot
+- `getInterpolatedTransform(entityId, time)` - Get interpolated transform
+- `getLatestSnapshot(entityId)` - Get latest snapshot
+- `getVelocity(entityId)` - Get estimated velocity
+- `clearSnapshots(entityId)` - Clear entity snapshots
+- `clearAllSnapshots()` - Clear all snapshots
+
+### Movement Module
+
+#### MovementController
+- `new MovementController(transform, options)` - Create controller
+- `update(dt)` - Update physics
+- `moveForward(dt)` - Move forward
+- `moveBackward(dt)` - Move backward
+- `moveLeft(dt)` - Move left
+- `moveRight(dt)` - Move right
+- `jump()` - Jump
+- `rotate(angle, axis)` - Rotate
+- `lookAt(target)` - Look at target
+- `setPosition(position)` - Set position
+- `setVelocity(velocity)` - Set velocity
+- `getPosition()` - Get position
+- `getVelocity()` - Get velocity
+
+## Event System
+
+All major components in Puppeteer.js implement an EventEmitter pattern:
+
+```javascript
+// Listen for events
+client.on('connected', (data) => {
+    console.log(`Connected to room: ${data.roomId}`);
+});
+
+client.on('entityUpdated', (data) => {
+    console.log(`Entity updated: ${data.entityId}`);
+});
+
+// One-time event
+client.once('connectionFailed', (error) => {
+    console.error('Connection failed:', error);
+});
+
+// Remove event listener
+client.off('entityUpdated', myHandler);
+```
+
+Common events include:
+- `connected` - Connected to room
+- `disconnected` - Disconnected from room
+- `entityUpdated` - Entity was updated
+- `networkUpdate` - Network update received
+- `entityRegistered` - New entity registered
+- `ownershipChanged` - Entity ownership changed
+- `peerConnected` - P2P peer connected
+- `peerDisconnected` - P2P peer disconnected
+
+## Utilities
+
+### Clock
+- `now()` - Get current time in milliseconds
+
+### UUID
+- `generateUUID()` - Generate random UUID
+
+## Browser Support
+
+Puppeteer.js works in all modern browsers that support:
+- WebSockets
+- WebRTC (optional, for P2P connections)
+- localStorage (optional, for state persistence)
+- requestAnimationFrame
+- ES6 features
+
+## License
+
+Puppeteer.js is released under the MIT License.
 
 <div align="center">
   <img src="https://img.shields.io/badge/Made%20with%20%E2%9D%A4%EF%B8%8F%20by-The404Studios-blue" alt="Made with love by The404Studios"/>

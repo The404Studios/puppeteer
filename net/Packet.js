@@ -1,8 +1,18 @@
 /**
  * Packet.js
  * Packet encode/decode helpers for network transmission
- * Supports both JSON and binary (ArrayBuffer) formats
+ * Supports both JSON and binary (ArrayBuffer) formats with compression
  */
+
+// Try to import Compression if available
+let Compression = null;
+if (typeof require !== 'undefined') {
+    try {
+        Compression = require('../utils/Compression.js');
+    } catch (e) {
+        // Compression not available in this environment
+    }
+}
 
 const PacketType = {
     // Connection
@@ -56,22 +66,39 @@ class Packet {
 
     /**
      * Encodes the packet as binary ArrayBuffer
+     * @param {boolean} compress - Whether to compress the data (default: false)
      * @returns {ArrayBuffer} Binary encoded packet
      */
-    toBinary() {
-        // Simple binary format:
-        // [type: 1 byte][timestamp: 8 bytes (double)][data length: 4 bytes][data: variable]
+    toBinary(compress = false) {
+        // Binary format:
+        // [type: 1 byte][flags: 1 byte][timestamp: 8 bytes (double)][data length: 4 bytes][data: variable]
+        // flags bit 0: compression enabled
 
-        const jsonData = JSON.stringify(this.data);
-        const dataBytes = new TextEncoder().encode(jsonData);
+        let dataBytes;
+        let compressionFlag = 0;
 
-        const buffer = new ArrayBuffer(1 + 8 + 4 + dataBytes.length);
+        if (compress && Compression) {
+            // Try to compress the data
+            const compressedBuffer = Compression.compressToBuffer(this.data);
+            dataBytes = new Uint8Array(compressedBuffer);
+            compressionFlag = 1;
+        } else {
+            // No compression, use JSON
+            const jsonData = JSON.stringify(this.data);
+            dataBytes = new TextEncoder().encode(jsonData);
+        }
+
+        const buffer = new ArrayBuffer(1 + 1 + 8 + 4 + dataBytes.length);
         const view = new DataView(buffer);
 
         let offset = 0;
 
         // Type
         view.setUint8(offset, this.type);
+        offset += 1;
+
+        // Flags
+        view.setUint8(offset, compressionFlag);
         offset += 1;
 
         // Timestamp
@@ -118,6 +145,11 @@ class Packet {
             const type = view.getUint8(offset);
             offset += 1;
 
+            // Flags
+            const flags = view.getUint8(offset);
+            offset += 1;
+            const isCompressed = (flags & 1) === 1;
+
             // Timestamp
             const timestamp = view.getFloat64(offset);
             offset += 8;
@@ -128,8 +160,16 @@ class Packet {
 
             // Data
             const dataBytes = new Uint8Array(buffer, offset, dataLength);
-            const jsonData = new TextDecoder().decode(dataBytes);
-            const data = JSON.parse(jsonData);
+            let data;
+
+            if (isCompressed && Compression) {
+                // Decompress the data
+                data = Compression.decompressFromBuffer(dataBytes.buffer.slice(offset));
+            } else {
+                // Parse as JSON
+                const jsonData = new TextDecoder().decode(dataBytes);
+                data = JSON.parse(jsonData);
+            }
 
             return new Packet(type, data, timestamp);
         } catch (error) {
@@ -187,8 +227,106 @@ class Packet {
             entityId,
             position: transform.position,
             rotation: transform.rotation,
+            scale: transform.scale,
             metadata
         });
+    }
+
+    /**
+     * Creates a compressed entity update packet using quantization
+     * @param {string} entityId - Entity ID
+     * @param {Object} transform - Transform data
+     * @param {Object} options - Compression options
+     * @returns {ArrayBuffer} Compressed packet
+     */
+    static createCompressedEntityUpdate(entityId, transform, options = {}) {
+        if (!Compression) {
+            console.warn('Compression not available, using standard packet');
+            return this.createEntityUpdate(entityId, transform).toBinary();
+        }
+
+        const bounds = options.bounds || { min: -1000, max: 1000 };
+
+        // Create a compact binary format
+        const idBytes = new TextEncoder().encode(entityId);
+        const posBuffer = Compression.compressPosition(transform.position, bounds);
+        const rotBuffer = Compression.compressQuaternion(transform.rotation);
+
+        // Total: 1 + 1 + idBytes.length + 6 + 7 = 15 + idBytes.length
+        const buffer = new ArrayBuffer(2 + idBytes.length + posBuffer.byteLength + rotBuffer.byteLength);
+        const view = new DataView(buffer);
+
+        let offset = 0;
+
+        // Packet type
+        view.setUint8(offset, PacketType.ENTITY_UPDATE);
+        offset += 1;
+
+        // Entity ID length
+        view.setUint8(offset, idBytes.length);
+        offset += 1;
+
+        // Entity ID
+        const idView = new Uint8Array(buffer, offset, idBytes.length);
+        idView.set(idBytes);
+        offset += idBytes.length;
+
+        // Position (6 bytes)
+        const posView = new Uint8Array(buffer, offset, posBuffer.byteLength);
+        posView.set(new Uint8Array(posBuffer));
+        offset += posBuffer.byteLength;
+
+        // Rotation (7 bytes)
+        const rotView = new Uint8Array(buffer, offset, rotBuffer.byteLength);
+        rotView.set(new Uint8Array(rotBuffer));
+
+        return buffer;
+    }
+
+    /**
+     * Decodes a compressed entity update packet
+     * @param {ArrayBuffer} buffer - Compressed packet
+     * @param {Object} options - Decompression options
+     * @returns {Object} Decoded entity update
+     */
+    static decodeCompressedEntityUpdate(buffer, options = {}) {
+        if (!Compression) {
+            throw new Error('Compression not available');
+        }
+
+        const bounds = options.bounds || { min: -1000, max: 1000 };
+        const view = new DataView(buffer);
+
+        let offset = 0;
+
+        // Packet type
+        const type = view.getUint8(offset);
+        offset += 1;
+
+        // Entity ID length
+        const idLength = view.getUint8(offset);
+        offset += 1;
+
+        // Entity ID
+        const idBytes = new Uint8Array(buffer, offset, idLength);
+        const entityId = new TextDecoder().decode(idBytes);
+        offset += idLength;
+
+        // Position (6 bytes)
+        const posBuffer = buffer.slice(offset, offset + 6);
+        const position = Compression.decompressPosition(posBuffer, bounds);
+        offset += 6;
+
+        // Rotation (7 bytes)
+        const rotBuffer = buffer.slice(offset, offset + 7);
+        const rotation = Compression.decompressQuaternion(rotBuffer);
+
+        return {
+            type,
+            entityId,
+            position,
+            rotation
+        };
     }
 
     /**
@@ -311,14 +449,25 @@ const PacketUtils = {
     },
 
     /**
-     * Compresses packet data (simple implementation)
+     * Compresses packet data
      * @param {Packet} packet - Packet to compress
-     * @returns {Packet} Packet with compressed data
+     * @returns {ArrayBuffer} Compressed packet
      */
     compress(packet) {
-        // In a real implementation, you might use a compression library
-        // For now, just return the packet as-is
-        return packet;
+        if (!Compression) {
+            console.warn('Compression not available');
+            return packet.toBinary();
+        }
+        return packet.toBinary(true);
+    },
+
+    /**
+     * Decompresses packet data
+     * @param {ArrayBuffer} buffer - Compressed packet
+     * @returns {Packet} Decompressed packet
+     */
+    decompress(buffer) {
+        return Packet.fromBinary(buffer);
     },
 
     /**

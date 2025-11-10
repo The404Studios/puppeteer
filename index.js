@@ -8,6 +8,7 @@ import Snapshot from './core/Snapshot.js';
 // Interpolation
 import * as Interpolator from './interp/Interpolator.js';
 import SnapshotBuffer from './interp/SnapshotBuffer.js';
+import AdvancedInterpolation from './interp/AdvancedInterpolation.js';
 
 // Networking
 import * as RoomClient from './net/RoomClient.js';
@@ -35,9 +36,13 @@ import UUID from './utils/UUID.js';
 import EventEmitter from './utils/EventEmitter.js';
 import { Logger, LogLevel, defaultLogger } from './utils/Logger.js';
 import Compression from './utils/Compression.js';
+import DeltaCompression from './utils/DeltaCompression.js';
 import PerfMeter from './utils/PerfMeter.js';
 import DebugOverlay from './utils/DebugOverlay.js';
 import NetStats from './utils/NetStats.js';
+import RingBuffer from './utils/RingBuffer.js';
+import FrameTimer from './utils/FrameTimer.js';
+import StateCache from './utils/StateCache.js';
 
 // Main export
 export default {
@@ -54,6 +59,7 @@ export default {
   Interp: {
     Interpolator,
     SnapshotBuffer,
+    AdvancedInterpolation,
   },
 
   // Networking
@@ -92,9 +98,13 @@ export default {
     LogLevel,
     defaultLogger,
     Compression,
+    DeltaCompression,
     PerfMeter,
     DebugOverlay,
     NetStats,
+    RingBuffer,
+    FrameTimer,
+    StateCache,
   },
 
   // Convenience exports
@@ -118,6 +128,7 @@ export {
   // Interpolation
   Interpolator,
   SnapshotBuffer,
+  AdvancedInterpolation,
 
   // Networking
   RoomClient,
@@ -150,7 +161,11 @@ export {
   LogLevel,
   defaultLogger,
   Compression,
+  DeltaCompression,
   PerfMeter,
   DebugOverlay,
   NetStats,
+  RingBuffer,
+  FrameTimer,
+  StateCache,
 };
